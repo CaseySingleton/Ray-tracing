@@ -16,7 +16,7 @@ CC			= gcc
 CFLAGS		= -Wall -Werror -Wextra -O3 -lpthread
 FLAGS		= $(CFLAGS)
 
-FILES		= main.c
+FILES		= main.c vector_math.c ray.c sphere.c material.c
 
 FRAMEWORKS	= -framework OpenGL -framework Appkit
 

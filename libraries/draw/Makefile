@@ -16,7 +16,7 @@ CC				= gcc
 CFLAGS			= -Wall -Werror -Wextra -O3
 FLAGS			= $(CFLAGS)
 
-FILES			= image.c circle.c sphere.c line.c matrix.c rotation.c vector.c
+FILES			= image.c circle.c line.c matrix.c rotation.c vector.c
 
 SRC				= $(addprefix sources/, $(FILES))
 OBJ				= $(addprefix build/, $(FILES:.c=.o))

@@ -22,6 +22,7 @@
 
 # define MIN(a, b) ((a < b) ? a : b)
 # define MAX(a, b) ((a > b) ? a : b)
+# define CLAMP(n, min, max) MIN(MAX(n, min), max)
 
 # define VXP(x1, y1, x2, y2) ((x1 * y2) - (x2 * y1))
 
@@ -74,24 +75,22 @@ typedef struct		s_line
 	t_xyz			p2;
 }					t_line;
 
-typedef struct		s_vector
+typedef struct		s_ray
 {
-	t_xyz			pos;
+	t_xyz			origin;
 	t_xyz			direction;
 
-}					t_vector;
+}					t_ray;
+
+/*
+**	2D primitives
+*/
 
 typedef struct		s_circle
 {
 	t_xyz			pos;
 	float			radius;
 }					t_circle;
-
-typedef struct		s_sphere
-{
-	t_xyz			pos;
-	float			radius;
-}					t_sphere;
 
 typedef struct		s_rectangle
 {
@@ -121,13 +120,6 @@ typedef struct		s_camera
 	t_xyz			direction;
 }					t_camera;
 
-typedef struct		s_light
-{
-	t_xyz			pos;
-	float			birghtness;
-	struct s_light	*next;
-}					t_light;
-
 /*
 **	line.c
 */
@@ -147,7 +139,7 @@ void				ccircle(t_image *image, t_circle c, int color);
 **	sphere.c
 */
 
-void				sphere(t_image *image, t_sphere *s);
+// void				sphere(t_image *image, t_sphere *s);
 
 /*
 **	image.c

@@ -10,102 +10,139 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "RTv1.h"
+#include <time.h>
+#include <sys/time.h>
+#include "rt.h"
 
-// 0x8eeffa
-
-// #define vec3_sub(a, b)
-
-t_xyz			vec3_multf(t_xyz a, float n)
+t_object		*create_scene_objects(void)
 {
-	return ((t_xyz){a.x * n, a.y * n, a.z * n});
+	t_object	*o;
+	t_sphere	*s1;
+	t_sphere	*s2;
+	t_sphere	*s3;
+
+	if (!(o = (t_object *)malloc(sizeof(t_object))))
+		return (NULL);
+	if (!(o->next = (t_object *)malloc(sizeof(t_object))))
+		return (NULL);
+	if (!(o->next->next = (t_object *)malloc(sizeof(t_object))))
+		return (NULL);
+	if (!(s1 = (t_sphere *)malloc(sizeof(t_sphere))))
+		return (NULL);
+	if (!(s2 = (t_sphere *)malloc(sizeof(t_sphere))))
+		return (NULL);
+	if (!(s3 = (t_sphere *)malloc(sizeof(t_sphere))))
+		return (NULL);
+
+	s1->position = vec3_new(0.0f, 0.0f, -1.0f);
+	s1->radius = 0.5f;
+	s2->position = vec3_new(0.0f, -100.5f, -1.0f);
+	s2->radius = 100.0f;
+	s3->position = vec3_new(-1.0f, 0.0f, -1.0f);
+	s3->radius = 0.5f;
+
+	o->object_type = SPHERE;
+	o->object = s1;
+	o->next->object_type = SPHERE;
+	o->next->object = s2;
+	o->next->next->object_type = SPHERE;
+	o->next->next->object = s3;
+	o->next->next->next = NULL;
+	return (o);
 }
 
-float			vec3_dot(t_xyz a, t_xyz b)
+int					hit(t_object *objects, t_ray *r, t_hit_list *h, float t_min, float t_max)
 {
-	return (a.x * b.x + a.y * b.y + a.z * b.z);
+	t_object		*o;
+	t_hit_list		temp_h;
+	float			closest;
+	int				hit_anything;
+
+	o = objects;
+	hit_anything = 0;
+	closest = t_max;
+	while (o != NULL)
+	{
+		if (o->object_type == SPHERE && sphere_hit((t_sphere *)(o->object), r, &temp_h, t_min, closest) == 1)
+		{
+			hit_anything = 1;
+			closest = temp_h.t;
+			h->normal = temp_h.normal;
+			h->t = temp_h.t;
+			h->p = temp_h.p;
+		}
+		o = o->next;
+	}
+	return (hit_anything);
 }
 
-t_xyz			vec3_add(t_xyz a, t_xyz b)
+t_xyz			random_in_unit_sphere(void)
 {
-	return ((t_xyz){a.x + b.x, a.y + b.y, a.z + b.z});
+	t_xyz		p;
+
+	p = vec3_sub(vec3_multf(vec3_new(drand48(), drand48(), drand48()), 2.0f), vec3_new(1.0f, 1.0f, 1.0f));
+	while (p.x * p.x + p.y * p.y + p.z * p.z >= 1.0f)
+	{
+		p = vec3_sub(vec3_multf(vec3_new(drand48(), drand48(), drand48()), 2.0f), vec3_new(1.0f, 1.0f, 1.0f));
+	}
+	return (p);
 }
 
-t_xyz			vec3_sub(t_xyz a, t_xyz b)
+t_xyz			get_color(t_object *objects, t_ray *r)
 {
-	return ((t_xyz){a.x - b.x, a.y - b.y, a.z - b.z});
+	t_hit_list	hit_list;
+	t_xyz		unit_direction;
+	t_xyz		ratios;
+	t_xyz		colors;
+	float		t;
+
+	ft_bzero(&hit_list, sizeof(t_hit_list));
+	ratios = vec3_new(1.0f, 1.0f, 1.0f);
+	colors = vec3_new(0.5f, 0.7f, 1.0f);
+	if (hit(objects, r, &hit_list, 0.001f, MAXFLOAT) == 1)
+	{
+		t_xyz target = vec3_add(hit_list.p, hit_list.normal);
+		target = vec3_add(target, random_in_unit_sphere());
+		t_ray nr = ray_new(hit_list.p, vec3_sub(target, hit_list.p));
+		return (vec3_multf(get_color(objects, &nr), 0.5f));
+	}
+	unit_direction = vec3_to_unit(r->direction);
+	t = 0.5f * (unit_direction.y + 1.0f);
+	return (vec3_add(vec3_multf(ratios, (1.0f - t)), vec3_multf(colors, t)));
 }
 
-float			vec3_len(t_xyz v)
+int					render_loop(t_world *w)
 {
-	float		value = (v.x * v.x + v.y * v.y + v.z * v.z);
-
-	return (sqrtf(value));
-}
-
-int 			shade(float x, float y, float z, int color)
-{
-	float		ratio;
-	int			r;
-	int			g;
-	int			b;
-
-	ratio = (z - x) / (y - x);
-	r = (color & 0xFF0000) >> 16;
-	g = (color & 0x00FF00) >> 8;
-	b = color & 0x0000FF;
-	r *= ratio;
-	g *= ratio;
-	b *= ratio;
-	return ((r << (8 * 2)) | (g << 8) | b);
-}
-
-int				render_loop(t_world *w)
-{
-	t_xyz		l;
-	t_sphere	*s = (t_sphere *)w->objects->object;
+	t_ray			ray;
+	t_xy			uv;
+	t_xyz			color;
+	t_object		*objects;
 
 	ft_bzero(w->image->buffer, w->image->image_length);
 	mlx_clear_window(w->mlx_ptr, w->win_ptr);
-	for (int i = 0; i < WIN_VRES; i++)
+	ray.origin = vec3_new(0.0f, 0.0f, 0.0f);
+	objects = create_scene_objects();
+	for (int y = WIN_VRES - 1; y >= 0; y--)
 	{
-		for (int j = 0; j < WIN_HRES; j++)
+		for (int x = 0; x < WIN_HRES; x++)
 		{
-			t_xyz uv = {j - WIN_HRES / 2, i - WIN_VRES / 2, 1};
-			uv.x /= WIN_VRES;
-			uv.y /= WIN_VRES;
-			float l = vec3_len(uv);
-			t_xyz rd = {uv.x / l, uv.y / l, uv.z / l};
-			t_xyz ro = {0.0f, 0.0f, 0.0f};
-			t_xyz so = s->pos;
-			float t = vec3_dot(vec3_sub(so, ro), rd);
-			t_xyz p = vec3_multf(vec3_add(ro, rd), t);
-			float y = vec3_len(vec3_sub(so, p));
-			if (y < s->radius)
+			color.x = 0.0f;
+			color.y = 0.0f;
+			color.z = 0.0f;
+			for (int j = 0; j < 100; j++)
 			{
-				float x = sqrtf(s->radius * s->radius - y * y);
-				float t1 = t - x;
-				float t2 = t + x;
-				w->image->buffer[(int)(i * WIN_HRES + j)] = shade(so.z, so.z - s->radius, t1, w->objects->color);
+				uv.x = ((float)x + drand48()) / (float)WIN_HRES;
+				uv.y = ((float)y + drand48()) / (float)WIN_VRES;
+				ray.direction = vec3_new(-2.0f + uv.x * 4.0f, -1.0 + uv.y * 2.0f, -1.0f);
+				color = vec3_add(color, get_color(objects, &ray));
 			}
+			color = vec3_divf(color, 100.0f);
+			color = vec3_new(sqrtf(color.x), sqrtf(color.y), sqrtf(color.z));
+			pixel(w->image, x, WIN_VRES - 1 - y, vec3_to_color(color));
 		}
 	}
 	mlx_put_image_to_window(w->mlx_ptr, w->win_ptr, w->image->ptr, 0, 0);
 	return (0);
-}
-
-t_camera		*camera_init(void)
-{
-	t_camera	*c;
-
-	if (!(c = (t_camera *)malloc(sizeof(t_camera))))
-		return (NULL);
-	c->direction.x = 0;
-	c->direction.y = 1;
-	c->pos.x = WIN_HRES / 2;
-	c->pos.y = WIN_VRES / 2;
-	c->pos.z = 0;
-	return (c);
 }
 
 void			window_setup(void)
@@ -115,17 +152,6 @@ void			window_setup(void)
 	w.mlx_ptr = mlx_init();
 	w.win_ptr = mlx_new_window(w.mlx_ptr, WIN_HRES, WIN_VRES, "Hello");
 	w.image = new_image(w.mlx_ptr, WIN_HRES, WIN_VRES);
-	// w.camera = camera_init();
-	w.background_color = 0;
-	w.view_plane = (t_view_plane *)malloc(sizeof(t_view_plane));
-	w.view_plane->hres = 200;
-	w.view_plane->vres = 200;
-	w.objects = (t_object *)malloc(sizeof(t_object));
-	w.objects->object = (void *)&((t_sphere){(t_xyz){0.0f, 0.0f, 2.8f}, 1.0f});
-	w.objects->color = 0x8eeffa;
-	w.objects->light_absorption = 1.0f;
-	w.objects->next = NULL;
-
 	mlx_loop_hook(w.mlx_ptr, render_loop, &w);
 	mlx_loop(w.mlx_ptr);
 }
